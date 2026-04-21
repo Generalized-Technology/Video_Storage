@@ -93,6 +93,38 @@
     .copy-all-btn:hover { color: var(--accent); border-color: var(--accent); }
     .copy-all-btn.copied { color: #4dff91; border-color: #4dff91; }
 
+    /* EXT FILTER */
+    .ext-wrap {
+      position: relative; flex: 1; min-width: 200px;
+    }
+    .ext-wrap input {
+      width: 100%; background: var(--card); border: 1px solid var(--border);
+      color: var(--accent); font-family: var(--mono); font-size: 0.78rem;
+      padding: 0.6rem 0.9rem 0.6rem 2.2rem; outline: none; transition: border-color 0.2s;
+    }
+    .ext-wrap input:focus { border-color: var(--accent); }
+    .ext-wrap input::placeholder { color: var(--muted); font-size: 0.72rem; }
+    .ext-icon { position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 0.8rem; }
+
+    .ext-tags {
+      display: flex; flex-wrap: wrap; gap: 0.4rem;
+      padding: 0 2rem 0.6rem;
+    }
+    .ext-tag {
+      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 3px 8px;
+      background: rgba(232,255,71,0.08); color: var(--accent);
+      border: 1px solid rgba(232,255,71,0.3);
+      display: flex; align-items: center; gap: 5px;
+      animation: fadeIn 0.15s forwards;
+    }
+    .ext-tag button {
+      background: none; border: none; color: var(--accent); cursor: pointer;
+      font-size: 0.7rem; padding: 0; line-height: 1; opacity: 0.6;
+      transition: opacity 0.15s;
+    }
+    .ext-tag button:hover { opacity: 1; }
+
     /* GRID */
     main { padding: 1.5rem 2rem 4rem; position: relative; z-index: 1; }
     #video-grid {
@@ -298,9 +330,14 @@
     <span class="search-icon">⌕</span>
     <input type="text" id="search" placeholder="Search videos..." oninput="filterCards()"/>
   </div>
+  <div class="ext-wrap">
+    <span class="ext-icon">🏷</span>
+    <input type="text" id="ext-input" placeholder=".mp4, .mp3, .gif  — press Enter or comma to add" onkeydown="handleExtKey(event)"/>
+  </div>
   <div id="count-label">Loading...</div>
   <button class="copy-all-btn" id="copy-all-btn" onclick="copyAll()">Copy All Links</button>
 </div>
+<div class="ext-tags" id="ext-tags"></div>
 
 <main>
   <div id="video-grid">
@@ -427,9 +464,62 @@
     }).join('');
   }
 
+  /* ── EXTENSION FILTER ── */
+  let activeExts = [];
+
+  function handleExtKey(e) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      commitExtInput();
+    } else if (e.key === 'Backspace') {
+      const input = document.getElementById('ext-input');
+      if (input.value === '' && activeExts.length) {
+        activeExts.pop();
+        renderExtTags();
+        filterCards();
+      }
+    }
+  }
+
+  function commitExtInput() {
+    const input = document.getElementById('ext-input');
+    const raw = input.value.trim();
+    if (!raw) return;
+    raw.split(',').forEach(part => {
+      let ext = part.trim().toLowerCase().replace(/^\.+/, '');
+      if (ext && !activeExts.includes(ext)) activeExts.push(ext);
+    });
+    input.value = '';
+    renderExtTags();
+    filterCards();
+  }
+
+  function removeExt(ext) {
+    activeExts = activeExts.filter(e => e !== ext);
+    renderExtTags();
+    filterCards();
+  }
+
+  function renderExtTags() {
+    const container = document.getElementById('ext-tags');
+    container.innerHTML = activeExts.map(ext => `
+      <div class="ext-tag">
+        .${ext}
+        <button onclick="removeExt('${ext}')" title="Remove">✕</button>
+      </div>`).join('');
+  }
+
   function filterCards() {
-    const q = document.getElementById('search').value.toLowerCase().trim();
-    renderCards(q ? allItems.filter(v => v.name.toLowerCase().includes(q)) : allItems);
+    const q    = document.getElementById('search').value.toLowerCase().trim();
+    let result = allItems;
+    if (activeExts.length) {
+      result = result.filter(v => {
+        const fileExt = v.name.split('.').pop().toLowerCase();
+        return activeExts.includes(fileExt);
+      });
+    }
+    if (q) result = result.filter(v => v.name.toLowerCase().includes(q));
+    renderCards(result);
   }
 
   function copyLink(url, btnId) {
